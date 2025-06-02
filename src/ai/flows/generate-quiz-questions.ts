@@ -49,7 +49,12 @@ const generateQuizQuestionsFlow = ai.defineFlow(
     outputSchema: GenerateQuizQuestionsOutputSchema,
   },
   async input => {
-    const {output} = await prompt(input);
-    return output!;
+    const {output} = await prompt(input); // This line can throw errors like 503
+    if (!output || !output.questions) {
+      // Handles cases where the prompt resolves but output is empty/undefined or questions array is missing
+      console.error('Quiz generation prompt returned no output, or output did not conform to schema.');
+      return { questions: [] }; // Provide a default, schema-compliant response
+    }
+    return output;
   }
 );

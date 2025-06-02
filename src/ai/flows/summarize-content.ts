@@ -29,7 +29,7 @@ const summarizeContentPrompt = ai.definePrompt({
   name: 'summarizeContentPrompt',
   input: {schema: SummarizeContentInputSchema},
   output: {schema: SummarizeContentOutputSchema},
-  prompt: `Summarize the following content:\n\n{{{content}}}`, 
+  prompt: `Summarize the following content:\n\n{{{content}}}`,
 });
 
 const summarizeContentFlow = ai.defineFlow(
@@ -39,7 +39,12 @@ const summarizeContentFlow = ai.defineFlow(
     outputSchema: SummarizeContentOutputSchema,
   },
   async input => {
-    const {output} = await summarizeContentPrompt(input);
-    return output!;
+    const {output} = await summarizeContentPrompt(input); // This line can throw errors like 503
+    if (!output) {
+      // Handles cases where the prompt resolves but output is empty/undefined (e.g., model didn't adhere to schema)
+      console.error('Summarization prompt returned no output, or output did not conform to schema.');
+      return { summary: '' }; // Provide a default, schema-compliant response
+    }
+    return output;
   }
 );
