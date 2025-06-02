@@ -1,19 +1,22 @@
+
 'use client';
 
-import { useState, useEffect } from 'react';
-import type { ChangeEvent } from 'react';
+import { useState, useEffect, type ChangeEvent } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { summarizeContent, type SummarizeContentOutput } from '@/ai/flows/summarize-content';
-import { generateQuizQuestions, type GenerateQuizQuestionsOutput } from '@/ai/flows/generate-quiz-questions';
+import { generateQuizQuestions, type GenerateQuizQuestionsInput, type GenerateQuizQuestionsOutput } from '@/ai/flows/generate-quiz-questions';
 import { extractTextFromPdf, type ExtractTextFromPdfOutput } from '@/ai/flows/extract-text-from-pdf-flow';
-import { ClipboardType, FileText, Link as LinkIcon, Loader2, BookText, ListChecks, Settings2 } from 'lucide-react';
+import { 
+  ClipboardType, FileText, Link as LinkIcon, Loader2, BookText, ListChecks, Settings2, HelpCircle, Gauge, ListOrdered, BookOpenCheck, Printer, CheckCircle2, AlertCircle, Check, X
+} from 'lucide-react';
 
 type QuizQuestion = GenerateQuizQuestionsOutput['questions'][0];
 
@@ -21,8 +24,17 @@ export default function QuizifyPage() {
   const [activeTab, setActiveTab] = useState<string>('paste');
   const [rawContent, setRawContent] = useState<string>('');
   const [summary, setSummary] = useState<string>('');
+  
+  const [quizSettings, setQuizSettings] = useState<Partial<GenerateQuizQuestionsInput>>({
+    subject: '',
+    difficulty: 'medium',
+    numQuestions: 5,
+    questionFormat: 'mcq',
+  });
   const [quizQuestions, setQuizQuestions] = useState<QuizQuestion[]>([]);
   const [userAnswers, setUserAnswers] = useState<Record<number, string>>({});
+  const [quizSubmitted, setQuizSubmitted] = useState<boolean>(false);
+  const [quizScore, setQuizScore] = useState<number>(0);
 
   const [isLoadingSummary, setIsLoadingSummary] = useState<boolean>(false);
   const [isLoadingQuiz, setIsLoadingQuiz] = useState<boolean>(false);
@@ -43,6 +55,7 @@ export default function QuizifyPage() {
         setSummary('');
         setQuizQuestions([]);
         setUserAnswers({});
+        setQuizSubmitted(false);
         try {
           const text = await file.text();
           setRawContent(text);
@@ -68,6 +81,7 @@ export default function QuizifyPage() {
         setSummary('');
         setQuizQuestions([]);
         setUserAnswers({});
+        setQuizSubmitted(false);
 
         try {
           const reader = new FileReader();
@@ -116,6 +130,7 @@ export default function QuizifyPage() {
     setSummary(''); 
     setQuizQuestions([]); 
     setUserAnswers({}); 
+    setQuizSubmitted(false);
     try {
       const result: SummarizeContentOutput = await summarizeContent({ content: rawContent });
       setSummary(result.summary);
@@ -127,6 +142,10 @@ export default function QuizifyPage() {
       setIsLoadingSummary(false);
     }
   };
+  
+  const handleQuizSettingChange = (field: keyof GenerateQuizQuestionsInput, value: string | number) => {
+    setQuizSettings(prev => ({ ...prev, [field]: value }));
+  };
 
   const handleGenerateQuiz = async () => {
     if (!summary.trim()) {
@@ -136,14 +155,22 @@ export default function QuizifyPage() {
     setIsLoadingQuiz(true);
     setQuizQuestions([]); 
     setUserAnswers({}); 
+    setQuizSubmitted(false);
     try {
-      const result: GenerateQuizQuestionsOutput = await generateQuizQuestions({ content: summary });
+      const input: GenerateQuizQuestionsInput = {
+        content: summary,
+        subject: quizSettings.subject || undefined,
+        difficulty: quizSettings.difficulty as 'easy' | 'medium' | 'hard' || undefined,
+        numQuestions: Number(quizSettings.numQuestions) || undefined,
+        questionFormat: quizSettings.questionFormat as 'mcq' | 'true_false' || undefined,
+      };
+      const result: GenerateQuizQuestionsOutput = await generateQuizQuestions(input);
       if (result.questions && result.questions.length > 0) {
         setQuizQuestions(result.questions);
         toast({ title: 'Quiz generated successfully!' });
       } else {
         setQuizQuestions([]);
-        toast({ title: 'Quiz Generation', description: 'No questions were generated. The summary might be too short or unsuitable.', variant: 'default' });
+        toast({ title: 'Quiz Generation', description: 'No questions were generated. The summary might be too short, or the AI could not fulfill the request with the current settings.', variant: 'default' });
       }
     } catch (error) {
       console.error('Error generating quiz:', error);
@@ -157,9 +184,27 @@ export default function QuizifyPage() {
     setUserAnswers(prev => ({ ...prev, [questionIndex]: answer }));
   };
 
+  const handleSubmitQuiz = () => {
+    let score = 0;
+    quizQuestions.forEach((q, index) => {
+      if (userAnswers[index] === q.answer) {
+        score++;
+      }
+    });
+    setQuizScore(score);
+    setQuizSubmitted(true);
+    toast({ title: 'Quiz Submitted!', description: `You scored ${score} out of ${quizQuestions.length}.`});
+  };
+
+  const handlePrint = () => {
+    window.print();
+  };
+
+  const allQuestionsAnswered = Object.keys(userAnswers).length === quizQuestions.length && quizQuestions.length > 0;
+
   return (
     <div className="container mx-auto p-4 sm:p-6 lg:p-8 max-w-3xl">
-      <header className="mb-8 text-center">
+      <header className="mb-8 text-center no-print">
         <h1 className="text-4xl font-headline font-bold text-primary flex items-center justify-center">
           <Settings2 className="mr-3 h-10 w-10" /> Quizify AI
         </h1>
@@ -168,7 +213,7 @@ export default function QuizifyPage() {
         </p>
       </header>
 
-      <Card className="shadow-xl">
+      <Card className="shadow-xl no-print">
         <CardHeader>
           <CardTitle className="text-2xl font-headline flex items-center">
             <ClipboardType className="mr-2 h-6 w-6 text-accent" /> 1. Provide Your Content
@@ -253,7 +298,7 @@ export default function QuizifyPage() {
       </Card>
 
       {summary && (
-        <Card className="mt-8 shadow-xl">
+        <Card className="mt-8 shadow-xl no-print">
           <CardHeader>
             <CardTitle className="text-2xl font-headline flex items-center">
               <BookText className="mr-2 h-6 w-6 text-accent" /> 2. Content Summary
@@ -263,10 +308,91 @@ export default function QuizifyPage() {
             <div className="p-4 bg-secondary/50 rounded-md border border-primary/20 max-h-60 overflow-y-auto">
               <p className="text-sm whitespace-pre-wrap">{summary}</p>
             </div>
-            <Button
+          </CardContent>
+        </Card>
+      )}
+
+      {summary && (
+        <Card className="mt-8 shadow-xl no-print">
+          <CardHeader>
+            <CardTitle className="text-2xl font-headline flex items-center">
+              <Settings2 className="mr-2 h-6 w-6 text-accent" /> 3. Quiz Settings
+            </CardTitle>
+            <CardDescription>Customize your quiz generation preferences.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="quizSubject" className="flex items-center mb-1">
+                  <BookOpenCheck className="mr-2 h-4 w-4 text-muted-foreground" /> Subject (Optional)
+                </Label>
+                <Input 
+                  id="quizSubject" 
+                  placeholder="e.g., Biology, History" 
+                  value={quizSettings.subject || ''}
+                  onChange={(e) => handleQuizSettingChange('subject', e.target.value)}
+                  disabled={isLoadingQuiz}
+                />
+              </div>
+              <div>
+                <Label htmlFor="numQuestions" className="flex items-center mb-1">
+                  <ListOrdered className="mr-2 h-4 w-4 text-muted-foreground" /> Number of Questions
+                </Label>
+                <Input 
+                  id="numQuestions" 
+                  type="number" 
+                  min="1"
+                  max="20"
+                  value={quizSettings.numQuestions || ''}
+                  onChange={(e) => handleQuizSettingChange('numQuestions', parseInt(e.target.value, 10))}
+                  disabled={isLoadingQuiz}
+                  placeholder="e.g., 5"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="quizDifficulty" className="flex items-center mb-1">
+                  <Gauge className="mr-2 h-4 w-4 text-muted-foreground" /> Difficulty
+                </Label>
+                <Select 
+                  value={quizSettings.difficulty || 'medium'} 
+                  onValueChange={(value) => handleQuizSettingChange('difficulty', value)}
+                  disabled={isLoadingQuiz}
+                >
+                  <SelectTrigger id="quizDifficulty">
+                    <SelectValue placeholder="Select difficulty" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="easy">Easy</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="hard">Hard</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="questionFormat" className="flex items-center mb-1">
+                  <HelpCircle className="mr-2 h-4 w-4 text-muted-foreground" /> Question Format
+                </Label>
+                <Select 
+                  value={quizSettings.questionFormat || 'mcq'} 
+                  onValueChange={(value) => handleQuizSettingChange('questionFormat', value)}
+                  disabled={isLoadingQuiz}
+                >
+                  <SelectTrigger id="questionFormat">
+                    <SelectValue placeholder="Select format" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="mcq">Multiple Choice</SelectItem>
+                    <SelectItem value="true_false">True/False</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+             <Button
               onClick={handleGenerateQuiz}
               disabled={isLoadingQuiz || !summary.trim() || isLoadingPdf || isLoadingSummary}
-              className="mt-6 w-full sm:w-auto bg-accent hover:bg-accent/90"
+              className="mt-4 w-full sm:w-auto bg-accent hover:bg-accent/90"
             >
               {isLoadingQuiz ? (
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -280,16 +406,29 @@ export default function QuizifyPage() {
       )}
 
       {quizQuestions.length > 0 && (
-        <Card className="mt-8 shadow-xl">
-          <CardHeader>
-            <CardTitle className="text-2xl font-headline flex items-center">
-               <ListChecks className="mr-2 h-6 w-6 text-accent" /> 3. Interactive Quiz
+        <Card className="mt-8 shadow-xl" id="printableArea">
+          <CardHeader className="no-print">
+            <CardTitle className="text-2xl font-headline flex items-center justify-between">
+              <div className="flex items-center">
+                <ListChecks className="mr-2 h-6 w-6 text-accent" /> {quizSubmitted ? "Quiz Results" : "4. Interactive Quiz"}
+              </div>
             </CardTitle>
           </CardHeader>
           <CardContent>
+             {quizSubmitted && (
+              <div className="mb-6 p-4 bg-primary/10 border border-primary/30 rounded-md text-center">
+                <h3 className="text-xl font-semibold text-primary">Your Score: {quizScore} / {quizQuestions.length}</h3>
+                <p className="text-muted-foreground">
+                  {quizScore === quizQuestions.length ? "Excellent! Perfect score!" : 
+                   quizScore >= quizQuestions.length * 0.7 ? "Great job!" :
+                   quizScore >= quizQuestions.length * 0.5 ? "Good effort, keep practicing!" :
+                   "Keep trying! Review the material and try again."}
+                </p>
+              </div>
+            )}
             <div className="space-y-6">
               {quizQuestions.map((q, index) => (
-                <div key={index} className="p-4 border border-primary/30 rounded-lg shadow-sm bg-card hover:shadow-md transition-shadow">
+                <div key={index} className={`p-4 border rounded-lg shadow-sm bg-card transition-shadow ${quizSubmitted ? (userAnswers[index] === q.answer ? 'border-green-500' : 'border-red-500') : 'border-primary/30 hover:shadow-md'}`}>
                   <p className="font-semibold mb-3 text-base text-primary">
                     {index + 1}. {q.question}
                   </p>
@@ -297,30 +436,53 @@ export default function QuizifyPage() {
                     onValueChange={(value) => handleQuizAnswerChange(index, value)}
                     value={userAnswers[index] || ''}
                     className="space-y-2"
-                    disabled={isLoadingPdf || isLoadingSummary || isLoadingQuiz}
+                    disabled={isLoadingPdf || isLoadingSummary || isLoadingQuiz || quizSubmitted}
                   >
                     {q.options.map((option, optIndex) => (
-                      <div key={optIndex} className="flex items-center space-x-3 p-2 rounded-md hover:bg-accent/10 transition-colors">
-                        <RadioGroupItem value={option} id={`q${index}-opt${optIndex}`} className="border-primary text-primary focus:ring-primary"/>
-                        <Label htmlFor={`q${index}-opt${optIndex}`} className="text-sm cursor-pointer flex-1">
+                      <div key={optIndex} className={`flex items-center space-x-3 p-2 rounded-md transition-colors ${quizSubmitted ? '' : 'hover:bg-accent/10'}`}>
+                        <RadioGroupItem 
+                          value={option} 
+                          id={`q${index}-opt${optIndex}`} 
+                          className="border-primary text-primary focus:ring-primary disabled:opacity-70"
+                          disabled={quizSubmitted}
+                        />
+                        <Label htmlFor={`q${index}-opt${optIndex}`} className={`text-sm flex-1 ${quizSubmitted ? '' : 'cursor-pointer'}`}>
                           {option}
                         </Label>
+                        {quizSubmitted && option === q.answer && <Check className="h-5 w-5 text-green-600" />}
+                        {quizSubmitted && option !== q.answer && userAnswers[index] === option && <X className="h-5 w-5 text-red-600" />}
                       </div>
                     ))}
                   </RadioGroup>
-                  {userAnswers[index] && userAnswers[index] === q.answer && (
-                     <p className="text-xs mt-2 text-green-600 font-medium">Correct Answer: {q.answer}</p>
-                  )}
-                   {userAnswers[index] && userAnswers[index] !== q.answer && (
-                     <p className="text-xs mt-2 text-red-600 font-medium">Correct Answer: {q.answer}</p>
+                  {quizSubmitted && (
+                     <p className={`text-xs mt-2 font-medium ${userAnswers[index] === q.answer ? 'text-green-700' : 'text-red-700'}`}>
+                       {userAnswers[index] === q.answer ? 'Your answer was correct.' : `Your answer was incorrect. Correct Answer: ${q.answer}`}
+                     </p>
                   )}
                 </div>
               ))}
             </div>
+            {!quizSubmitted && quizQuestions.length > 0 && (
+              <Button
+                onClick={handleSubmitQuiz}
+                disabled={!allQuestionsAnswered || isLoadingQuiz}
+                className="mt-6 w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white no-print"
+              >
+                <CheckCircle2 className="mr-2 h-5 w-5" /> Submit Quiz
+              </Button>
+            )}
+            {quizSubmitted && (
+              <Button
+                onClick={handlePrint}
+                className="mt-6 w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white no-print"
+              >
+                <Printer className="mr-2 h-5 w-5" /> Print Quiz & Results
+              </Button>
+            )}
           </CardContent>
         </Card>
       )}
-       <footer className="text-center mt-12 py-4 text-sm text-muted-foreground border-t">
+       <footer className="text-center mt-12 py-4 text-sm text-muted-foreground border-t no-print">
         {currentYear !== null ? (
           `Powered by AI & Next.js | Quizify AI © ${currentYear}`
         ) : (

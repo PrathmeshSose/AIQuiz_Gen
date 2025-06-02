@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -107,5 +108,41 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@media print {
+  body {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .no-print, .no-print * {
+    display: none !important;
+    visibility: hidden !important;
+  }
+  #printableArea, #printableArea * {
+    visibility: visible !important;
+  }
+  #printableArea {
+    position: absolute !important;
+    left: 0 !important;
+    top: 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+  #printableArea .card-content {
+    padding-top: 1.5rem !important; /* Re-add padding if CardContent's pt-0 is an issue */
+  }
+   /* Ensure Quiz Title for print is visible */
+  .printable-quiz-title {
+    visibility: visible !important;
+    display: block !important; /* Or flex, depending on its original display */
+    text-align: center;
+    font-size: 1.5rem;
+    font-weight: bold;
+    margin-bottom: 1rem;
   }
 }
