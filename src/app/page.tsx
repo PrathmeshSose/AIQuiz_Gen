@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { ChangeEvent } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { summarizeContent, type SummarizeContentOutput } from '@/ai/flows/summarize-content';
 import { generateQuizQuestions, type GenerateQuizQuestionsOutput } from '@/ai/flows/generate-quiz-questions';
+import { extractTextFromPdf, type ExtractTextFromPdfOutput } from '@/ai/flows/extract-text-from-pdf-flow';
 import { ClipboardType, FileText, Link as LinkIcon, Loader2, BookText, ListChecks, Settings2 } from 'lucide-react';
 
 type QuizQuestion = GenerateQuizQuestionsOutput['questions'][0];
@@ -25,17 +26,28 @@ export default function QuizifyPage() {
 
   const [isLoadingSummary, setIsLoadingSummary] = useState<boolean>(false);
   const [isLoadingQuiz, setIsLoadingQuiz] = useState<boolean>(false);
+  const [isLoadingPdf, setIsLoadingPdf] = useState<boolean>(false);
+  const [currentYear, setCurrentYear] = useState<number | null>(null);
 
   const { toast } = useToast();
+
+  useEffect(() => {
+    setCurrentYear(new Date().getFullYear());
+  }, []);
 
   const handleTxtUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       if (file.type === 'text/plain') {
+        setRawContent(''); 
+        setSummary('');
+        setQuizQuestions([]);
+        setUserAnswers({});
         try {
           const text = await file.text();
           setRawContent(text);
           toast({ title: 'TXT file loaded successfully!', description: 'Content loaded into the text area.' });
+          setActiveTab('paste');
         } catch (error) {
           console.error('Error reading TXT file:', error);
           toast({ title: 'Error reading file', description: 'Could not read the TXT file.', variant: 'destructive' });
@@ -43,7 +55,54 @@ export default function QuizifyPage() {
       } else {
         toast({ title: 'Invalid file type', description: 'Please upload a .txt file.', variant: 'destructive' });
       }
-      // Reset file input value to allow uploading the same file again
+      event.target.value = '';
+    }
+  };
+
+  const handlePdfUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (file.type === 'application/pdf') {
+        setIsLoadingPdf(true);
+        setRawContent('');
+        setSummary('');
+        setQuizQuestions([]);
+        setUserAnswers({});
+
+        try {
+          const reader = new FileReader();
+          reader.onloadend = async () => {
+            const pdfDataUri = reader.result as string;
+            try {
+              const result: ExtractTextFromPdfOutput = await extractTextFromPdf({ pdfDataUri });
+              if (result.extractedText && result.extractedText.trim() !== '') {
+                setRawContent(result.extractedText);
+                toast({ title: 'PDF content extracted successfully!', description: 'Content loaded into the text area.' });
+                setActiveTab('paste'); 
+              } else {
+                toast({ title: 'PDF Processing', description: 'Could not extract text from the PDF, or the PDF is empty/unreadable by AI.', variant: 'default' });
+              }
+            } catch (apiError) {
+              console.error('Error extracting text from PDF:', apiError);
+              toast({ title: 'PDF Processing Failed', description: 'Could not extract text from the PDF. The file might be corrupted or unsupported.', variant: 'destructive' });
+            } finally {
+              setIsLoadingPdf(false);
+            }
+          };
+          reader.onerror = () => {
+            console.error('Error reading PDF file for data URI conversion.');
+            toast({ title: 'File Read Error', description: 'Could not read the PDF file.', variant: 'destructive' });
+            setIsLoadingPdf(false);
+          };
+          reader.readAsDataURL(file);
+        } catch (error) {
+          console.error('Error preparing PDF for upload:', error);
+          toast({ title: 'Error processing PDF', description: 'An unexpected error occurred.', variant: 'destructive' });
+          setIsLoadingPdf(false);
+        }
+      } else {
+        toast({ title: 'Invalid file type', description: 'Please upload a .pdf file.', variant: 'destructive' });
+      }
       event.target.value = '';
     }
   };
@@ -54,9 +113,9 @@ export default function QuizifyPage() {
       return;
     }
     setIsLoadingSummary(true);
-    setSummary(''); // Clear previous summary
-    setQuizQuestions([]); // Clear previous quiz
-    setUserAnswers({}); // Clear previous answers
+    setSummary(''); 
+    setQuizQuestions([]); 
+    setUserAnswers({}); 
     try {
       const result: SummarizeContentOutput = await summarizeContent({ content: rawContent });
       setSummary(result.summary);
@@ -75,10 +134,9 @@ export default function QuizifyPage() {
       return;
     }
     setIsLoadingQuiz(true);
-    setQuizQuestions([]); // Clear previous quiz
-    setUserAnswers({}); // Clear previous answers
+    setQuizQuestions([]); 
+    setUserAnswers({}); 
     try {
-      // As per user request, quiz is generated from summarized content
       const result: GenerateQuizQuestionsOutput = await generateQuizQuestions({ content: summary });
       if (result.questions && result.questions.length > 0) {
         setQuizQuestions(result.questions);
@@ -128,7 +186,7 @@ export default function QuizifyPage() {
               <TabsTrigger value="pdf" className="text-xs sm:text-sm">
                 <FileText className="mr-1 sm:mr-2 h-4 w-4" /> Upload .PDF
               </TabsTrigger>
-              <TabsTrigger value="url" className="text-xs sm:text-sm">
+              <TabsTrigger value="url" className="text-xs sm:text-sm" disabled>
                 <LinkIcon className="mr-1 sm:mr-2 h-4 w-4" /> Enter URL
               </TabsTrigger>
             </TabsList>
@@ -139,19 +197,38 @@ export default function QuizifyPage() {
                 onChange={(e) => setRawContent(e.target.value)}
                 rows={10}
                 className="border-primary focus:ring-primary"
+                disabled={isLoadingPdf || isLoadingSummary || isLoadingQuiz}
               />
             </TabsContent>
             <TabsContent value="txt">
-              <Input type="file" accept=".txt" onChange={handleTxtUpload} className="cursor-pointer file:text-primary file:font-semibold hover:file:bg-accent/10" />
+              <Input 
+                type="file" 
+                accept=".txt" 
+                onChange={handleTxtUpload} 
+                className="cursor-pointer file:text-primary file:font-semibold hover:file:bg-accent/10" 
+                disabled={isLoadingPdf || isLoadingSummary || isLoadingQuiz}
+              />
               <p className="text-sm text-muted-foreground mt-2">
                 Upload a plain text (.txt) file. The content will appear in the 'Paste Text' tab.
               </p>
             </TabsContent>
             <TabsContent value="pdf">
-              <Input type="file" accept=".pdf" className="cursor-pointer file:text-primary file:font-semibold hover:file:bg-accent/10" disabled/>
-              <p className="text-sm text-muted-foreground mt-2">
-                PDF processing is coming soon! For now, please copy the text from your PDF and paste it into the &quot;Paste Text&quot; tab.
-              </p>
+              <Input 
+                type="file" 
+                accept=".pdf" 
+                onChange={handlePdfUpload} 
+                className="cursor-pointer file:text-primary file:font-semibold hover:file:bg-accent/10" 
+                disabled={isLoadingPdf || isLoadingSummary || isLoadingQuiz}
+              />
+              {isLoadingPdf ? (
+                 <p className="text-sm text-muted-foreground mt-2 flex items-center">
+                   <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing PDF...
+                 </p>
+              ) : (
+                <p className="text-sm text-muted-foreground mt-2">
+                  Upload a PDF (.pdf) file. Extracted text will appear in the 'Paste Text' tab.
+                </p>
+              )}
             </TabsContent>
             <TabsContent value="url">
               <Input type="url" placeholder="https://example.com" className="border-primary focus:ring-primary" disabled/>
@@ -162,7 +239,7 @@ export default function QuizifyPage() {
           </Tabs>
           <Button
             onClick={handleSummarizeContent}
-            disabled={!rawContent.trim() || isLoadingSummary || isLoadingQuiz}
+            disabled={!rawContent.trim() || isLoadingSummary || isLoadingQuiz || isLoadingPdf}
             className="mt-6 w-full sm:w-auto bg-primary hover:bg-primary/90"
           >
             {isLoadingSummary ? (
@@ -188,7 +265,7 @@ export default function QuizifyPage() {
             </div>
             <Button
               onClick={handleGenerateQuiz}
-              disabled={isLoadingQuiz || !summary.trim()}
+              disabled={isLoadingQuiz || !summary.trim() || isLoadingPdf || isLoadingSummary}
               className="mt-6 w-full sm:w-auto bg-accent hover:bg-accent/90"
             >
               {isLoadingQuiz ? (
@@ -220,6 +297,7 @@ export default function QuizifyPage() {
                     onValueChange={(value) => handleQuizAnswerChange(index, value)}
                     value={userAnswers[index] || ''}
                     className="space-y-2"
+                    disabled={isLoadingPdf || isLoadingSummary || isLoadingQuiz}
                   >
                     {q.options.map((option, optIndex) => (
                       <div key={optIndex} className="flex items-center space-x-3 p-2 rounded-md hover:bg-accent/10 transition-colors">
@@ -243,7 +321,11 @@ export default function QuizifyPage() {
         </Card>
       )}
        <footer className="text-center mt-12 py-4 text-sm text-muted-foreground border-t">
-        Powered by AI & Next.js | Quizify AI &copy; {new Date().getFullYear()}
+        {currentYear !== null ? (
+          `Powered by AI & Next.js | Quizify AI © ${currentYear}`
+        ) : (
+          'Loading footer...'
+        )}
       </footer>
     </div>
   );
