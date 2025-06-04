@@ -18,6 +18,7 @@ import { extractContentFromUrl, type ExtractContentFromUrlInput, type ExtractCon
 import { 
   ClipboardType, FileText, Link as LinkIcon, Loader2, BookText, ListChecks, Settings2, HelpCircle, Gauge, ListOrdered, BookOpenCheck, Printer, CheckCircle2, AlertCircle, Check, X, Send
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 type QuizQuestion = GenerateQuizQuestionsOutput['questions'][0];
 
@@ -101,9 +102,9 @@ export default function QuizifyPage() {
               } else {
                 toast({ title: 'PDF Processing Failed', description: result.extractedText || 'Could not extract text from the PDF, or the PDF is empty/unreadable by AI.', variant: 'destructive' });
               }
-            } catch (apiError) {
+            } catch (apiError: any) {
               console.error('Error extracting text from PDF:', apiError);
-              toast({ title: 'PDF Processing Failed', description: 'An error occurred during AI processing of the PDF.', variant: 'destructive' });
+              toast({ title: 'PDF Processing Failed', description: apiError.message || 'An error occurred during AI processing of the PDF.', variant: 'destructive' });
             } finally {
               setIsLoadingPdf(false);
             }
@@ -132,7 +133,6 @@ export default function QuizifyPage() {
       return;
     }
     try {
-      // Basic client-side validation for URL format
       new URL(urlInput);
     } catch (_) {
       toast({ title: 'Invalid URL', description: 'Please enter a valid URL (e.g., https://example.com).', variant: 'destructive'});
@@ -179,9 +179,9 @@ export default function QuizifyPage() {
         setSummary('');
         toast({ title: 'Summarization Failed', description: result.summary || 'The AI could not summarize the content.', variant: 'destructive'});
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error summarizing content:', error);
-      toast({ title: 'Summarization failed', description: 'Could not summarize the content. Please try again.', variant: 'destructive' });
+      toast({ title: 'Summarization failed', description: error.message || 'Could not summarize the content. Please try again.', variant: 'destructive' });
     } finally {
       setIsLoadingSummary(false);
     }
@@ -216,9 +216,9 @@ export default function QuizifyPage() {
         setQuizQuestions([]);
         toast({ title: 'Quiz Generation Failed', description: 'No questions were generated. The summary might be too short, or the AI could not fulfill the request with the current settings.', variant: 'default' });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error generating quiz:', error);
-      toast({ title: 'Quiz generation failed', description: 'Could not generate the quiz. Please try again.', variant: 'destructive' });
+      toast({ title: 'Quiz generation failed', description: error.message || 'Could not generate the quiz. Please try again.', variant: 'destructive' });
     } finally {
       setIsLoadingQuiz(false);
     }
@@ -495,7 +495,15 @@ export default function QuizifyPage() {
             )}
             <div className="space-y-6">
               {quizQuestions.map((q, index) => (
-                <div key={index} className={`p-4 border rounded-lg shadow-sm bg-card transition-shadow ${quizSubmitted ? (userAnswers[index] === q.answer ? 'border-green-500 print:border-green-500' : 'border-red-500 print:border-red-500') : 'border-primary/30 hover:shadow-md print:border-gray-300'}`}>
+                <div 
+                  key={index} 
+                  className={cn(
+                    "p-4 border rounded-lg shadow-sm bg-card transition-shadow print:shadow-none",
+                    quizSubmitted 
+                      ? (userAnswers[index] === q.answer ? 'border-green-500 print:border-green-500' : 'border-red-500 print:border-red-500') 
+                      : 'border-primary/30 hover:shadow-md print:border-gray-300'
+                  )}
+                >
                   <p className="font-semibold mb-3 text-base text-primary print:text-black">
                     {index + 1}. {q.question}
                   </p>
@@ -505,21 +513,31 @@ export default function QuizifyPage() {
                     className="space-y-2"
                     disabled={anyLoading || quizSubmitted}
                   >
-                    {q.options.map((option, optIndex) => (
-                      <div key={optIndex} className={`flex items-center space-x-3 p-2 rounded-md transition-colors ${quizSubmitted ? '' : 'hover:bg-accent/10'}`}>
-                        <RadioGroupItem 
-                          value={option} 
-                          id={`q${index}-opt${optIndex}`} 
-                          className="border-primary text-primary focus:ring-primary disabled:opacity-70 print:border-gray-500 print:text-gray-700"
-                          disabled={quizSubmitted}
-                        />
-                        <Label htmlFor={`q${index}-opt${optIndex}`} className={`text-sm flex-1 print:text-black ${quizSubmitted ? '' : 'cursor-pointer'}`}>
-                          {option}
-                        </Label>
-                        {quizSubmitted && option === q.answer && <Check className="h-5 w-5 text-green-600 print:text-green-600" />}
-                        {quizSubmitted && option !== q.answer && userAnswers[index] === option && <X className="h-5 w-5 text-red-600 print:text-red-600" />}
-                      </div>
-                    ))}
+                    {q.options.map((option, optIndex) => {
+                      const isUserAnswer = userAnswers[index] === option;
+                      const radioItemPrintClasses = quizSubmitted ? cn(
+                        "print:disabled:opacity-100",
+                        isUserAnswer ? "print:border-slate-800 print:text-slate-800" : "print:border-slate-400 print:text-slate-400 print:opacity-70"
+                      ) : "print:border-gray-500 print:text-gray-700";
+                      
+                      const labelPrintClasses = quizSubmitted && isUserAnswer ? "print:font-semibold" : "";
+
+                      return (
+                        <div key={optIndex} className={`flex items-center space-x-3 p-2 rounded-md transition-colors ${quizSubmitted ? '' : 'hover:bg-accent/10'}`}>
+                          <RadioGroupItem 
+                            value={option} 
+                            id={`q${index}-opt${optIndex}`} 
+                            className={cn("border-primary text-primary focus:ring-primary disabled:opacity-70", radioItemPrintClasses)}
+                            disabled={quizSubmitted}
+                          />
+                          <Label htmlFor={`q${index}-opt${optIndex}`} className={cn(`text-sm flex-1 print:text-black ${quizSubmitted ? '' : 'cursor-pointer'}`, labelPrintClasses)}>
+                            {option}
+                          </Label>
+                          {quizSubmitted && option === q.answer && <Check className="h-5 w-5 text-green-600 print:text-green-600" />}
+                          {quizSubmitted && option !== q.answer && userAnswers[index] === option && <X className="h-5 w-5 text-red-600 print:text-red-600" />}
+                        </div>
+                      );
+                    })}
                   </RadioGroup>
                   {quizSubmitted && (
                      <p className={`text-xs mt-2 font-medium print:text-sm ${userAnswers[index] === q.answer ? 'text-green-700 print:text-green-700' : 'text-red-700 print:text-red-700'}`}>
