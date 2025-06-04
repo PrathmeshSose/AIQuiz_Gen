@@ -414,7 +414,12 @@ export default function QuizifyPage() {
               </div>
             </CardTitle>
           </CardHeader>
-          <CardContent>
+          {quizSubmitted && (
+            <div className="printable-quiz-title hidden print:block">
+              Quiz Results
+            </div>
+          )}
+          <CardContent className={quizSubmitted ? "pt-6" : "pt-0"}> {/* Adjust padding if title is printed */}
              {quizSubmitted && (
               <div className="mb-6 p-4 bg-primary/10 border border-primary/30 rounded-md text-center">
                 <h3 className="text-xl font-semibold text-primary">Your Score: {quizScore} / {quizQuestions.length}</h3>

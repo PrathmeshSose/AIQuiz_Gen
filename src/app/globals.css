@@ -133,16 +133,13 @@
     box-shadow: none !important;
     border: none !important;
   }
-  #printableArea .card-content {
-    padding-top: 1.5rem !important; /* Re-add padding if CardContent's pt-0 is an issue */
-  }
    /* Ensure Quiz Title for print is visible */
   .printable-quiz-title {
-    visibility: visible !important;
-    display: block !important; /* Or flex, depending on its original display */
+    /* visibility and display are handled by print:block utility class */
     text-align: center;
-    font-size: 1.5rem;
+    font-size: 1.5rem; /* 24px */
     font-weight: bold;
-    margin-bottom: 1rem;
+    margin-bottom: 1rem; /* 16px */
+    padding-top: 1.5rem; /* Add padding to the top for the title */
   }
 }
