@@ -19,12 +19,20 @@ export async function setDeveloperApiKey(key: string | null): Promise<void> {
 }
 
 // This function will be called by the googleAI plugin.
-export async function getGoogleApiKeyForPlugin(): Promise<string | undefined> {
+export async function getGoogleApiKeyForPlugin(): Promise<string> {
   // In development, prioritize the dynamically set devApiKey.
-  if (process.env.NODE_ENV === 'development' && typeof devApiKey === 'string') {
+  if (process.env.NODE_ENV === 'development' && typeof devApiKey === 'string' && devApiKey.trim() !== '') {
     return devApiKey;
   }
   // Fallback to environment variable (from .env file or hosting environment).
-  return process.env.GOOGLE_API_KEY;
+  const envKey = process.env.GOOGLE_API_KEY;
+  if (typeof envKey === 'string' && envKey.trim() !== '') {
+    return envKey;
+  }
+  
+  // If no key is found, return a specific string that will cause an auth error from Google,
+  // but won't be the function's source code or undefined causing a TypeError here.
+  console.warn("API Key not found via UI-set devApiKey or GOOGLE_API_KEY environment variable. Using placeholder which will likely fail authentication.");
+  return "NO_VALID_API_KEY_FOUND";
 }
 
