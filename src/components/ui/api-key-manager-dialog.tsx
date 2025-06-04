@@ -15,7 +15,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { KeyRound, AlertTriangle } from 'lucide-react';
+import { KeyRound, AlertTriangle, Info } from 'lucide-react';
 
 const LOCAL_STORAGE_KEY = 'googleApiKey';
 
@@ -26,18 +26,36 @@ type ApiKeyManagerDialogProps = {
 
 export function ApiKeyManagerDialog({ isOpen, onOpenChange }: ApiKeyManagerDialogProps) {
   const [apiKeyInput, setApiKeyInput] = useState<string>('');
-  const [savedApiKey, setSavedApiKey] = useState<string | null>(null);
+  const [isKeyInLocalStorage, setIsKeyInLocalStorage] = useState<boolean>(false);
   const { toast } = useToast();
 
   useEffect(() => {
     if (isOpen) {
       const storedKey = localStorage.getItem(LOCAL_STORAGE_KEY);
-      setSavedApiKey(storedKey);
+      setIsKeyInLocalStorage(!!storedKey);
       setApiKeyInput(storedKey || '');
     }
   }, [isOpen]);
 
-  const handleSaveKey = () => {
+  const updateServerSessionKey = async (key: string | null) => {
+    try {
+      const response = await fetch('/api/set-dev-api-key', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: key }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.message || data.error || 'Failed to update server session key');
+      }
+      return data;
+    } catch (error: any) {
+      console.error('Error updating server session key:', error);
+      throw error; // Re-throw to be caught by caller
+    }
+  };
+
+  const handleSaveKey = async () => {
     if (!apiKeyInput.trim()) {
       toast({
         title: 'API Key is empty',
@@ -47,21 +65,49 @@ export function ApiKeyManagerDialog({ isOpen, onOpenChange }: ApiKeyManagerDialo
       return;
     }
     localStorage.setItem(LOCAL_STORAGE_KEY, apiKeyInput);
-    setSavedApiKey(apiKeyInput);
+    setIsKeyInLocalStorage(true);
     toast({
       title: 'API Key Saved Locally',
-      description: 'Your API key has been saved to browser local storage for convenience.',
+      description: 'Your API key has been saved to browser local storage.',
     });
+
+    try {
+      await updateServerSessionKey(apiKeyInput);
+      toast({
+        title: 'API Key Active for Session',
+        description: 'The API key is now active for the current server session (dev mode). No restart needed.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Server Key Update Failed',
+        description: `Could not activate key for server session: ${error.message}`,
+        variant: 'destructive',
+      });
+    }
   };
 
-  const handleClearKey = () => {
+  const handleClearKey = async () => {
     localStorage.removeItem(LOCAL_STORAGE_KEY);
-    setSavedApiKey(null);
+    setIsKeyInLocalStorage(false);
     setApiKeyInput('');
     toast({
-      title: 'API Key Cleared',
+      title: 'API Key Cleared Locally',
       description: 'Your API key has been removed from browser local storage.',
     });
+
+    try {
+      await updateServerSessionKey(null); // Send null to clear
+      toast({
+        title: 'API Key Cleared for Session',
+        description: 'The API key has been cleared for the current server session (dev mode).',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Server Key Clear Failed',
+        description: `Could not clear key for server session: ${error.message}`,
+        variant: 'destructive',
+      });
+    }
   };
 
   return (
@@ -69,19 +115,19 @@ export function ApiKeyManagerDialog({ isOpen, onOpenChange }: ApiKeyManagerDialo
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center">
-            <KeyRound className="mr-2 h-5 w-5" /> Manage Google AI API Key
+            <KeyRound className="mr-2 h-5 w-5" /> Manage Google AI API Key (Dev Mode)
           </DialogTitle>
           <DialogDescription>
-            Store your Google AI API key in your browser's local storage for convenience.
-            For AI features to work, you MUST also set this key in your <code>.env</code> file and restart the server.
+            Set your Google AI API key for the current development session. Changes take effect immediately without a server restart.
           </DialogDescription>
         </DialogHeader>
         
         <div className="py-4 space-y-4">
-          <div className="p-3 bg-yellow-50 border border-yellow-300 rounded-md text-yellow-700 text-sm flex items-start">
-            <AlertTriangle className="h-5 w-5 mr-2 shrink-0 mt-0.5" />
+          <div className="p-3 bg-blue-50 border border-blue-300 rounded-md text-blue-700 text-sm flex items-start">
+            <Info className="h-5 w-5 mr-2 shrink-0 mt-0.5" />
             <div>
-              <span className="font-semibold">Important:</span> Storing API keys in browser local storage is not secure for production. This feature is for local development convenience only.
+              <span className="font-semibold">Development Convenience:</span> This key is active for your current server session.
+              For persistence across server restarts or for production, set <code>GOOGLE_API_KEY</code> in your <code>.env</code> file and restart the server.
             </div>
           </div>
 
@@ -96,28 +142,24 @@ export function ApiKeyManagerDialog({ isOpen, onOpenChange }: ApiKeyManagerDialo
               onChange={(e) => setApiKeyInput(e.target.value)}
               placeholder="Enter your API key"
             />
-            {savedApiKey && (
+            {isKeyInLocalStorage && (
               <p className="text-xs text-muted-foreground mt-1">
-                A key is currently stored in local storage.
+                A key is currently stored in your browser's local storage.
               </p>
             )}
           </div>
 
-          <div className="p-3 bg-blue-50 border border-blue-300 rounded-md text-blue-700 text-sm">
-            <p className="font-semibold mb-1">To activate AI Features:</p>
-            <ol className="list-decimal list-inside space-y-1">
-              <li>Copy your API key.</li>
-              <li>Open the <code>.env</code> file in the project root.</li>
-              <li>Set <code>GOOGLE_API_KEY=YOUR_API_KEY_HERE</code> (replace <code>YOUR_API_KEY_HERE</code> with your actual key).</li>
-              <li>Save the <code>.env</code> file.</li>
-              <li>Restart your Next.js development server (usually by stopping and re-running <code>npm run dev</code>).</li>
-            </ol>
+           <div className="p-3 bg-yellow-50 border border-yellow-300 rounded-md text-yellow-700 text-sm flex items-start">
+            <AlertTriangle className="h-5 w-5 mr-2 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-semibold">Security Note:</span> Storing API keys in browser local storage is not secure for shared or production environments. This feature is for local development convenience.
+            </div>
           </div>
         </div>
 
         <DialogFooter className="sm:justify-between">
-          <Button type="button" variant="outline" onClick={handleClearKey} disabled={!savedApiKey}>
-            Clear Stored Key
+          <Button type="button" variant="outline" onClick={handleClearKey} disabled={!isKeyInLocalStorage && !apiKeyInput}>
+            Clear Key
           </Button>
           <div className="flex gap-2">
             <DialogClose asChild>
@@ -126,7 +168,7 @@ export function ApiKeyManagerDialog({ isOpen, onOpenChange }: ApiKeyManagerDialo
               </Button>
             </DialogClose>
             <Button type="button" onClick={handleSaveKey}>
-              Save to Local Storage
+              Set API Key for Session
             </Button>
           </div>
         </DialogFooter>
