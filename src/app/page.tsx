@@ -14,8 +14,9 @@ import { useToast } from '@/hooks/use-toast';
 import { summarizeContent, type SummarizeContentOutput } from '@/ai/flows/summarize-content';
 import { generateQuizQuestions, type GenerateQuizQuestionsInput, type GenerateQuizQuestionsOutput } from '@/ai/flows/generate-quiz-questions';
 import { extractTextFromPdf, type ExtractTextFromPdfOutput } from '@/ai/flows/extract-text-from-pdf-flow';
+import { extractContentFromUrl, type ExtractContentFromUrlInput, type ExtractContentFromUrlOutput } from '@/ai/flows/extract-content-from-url-flow';
 import { 
-  ClipboardType, FileText, Link as LinkIcon, Loader2, BookText, ListChecks, Settings2, HelpCircle, Gauge, ListOrdered, BookOpenCheck, Printer, CheckCircle2, AlertCircle, Check, X
+  ClipboardType, FileText, Link as LinkIcon, Loader2, BookText, ListChecks, Settings2, HelpCircle, Gauge, ListOrdered, BookOpenCheck, Printer, CheckCircle2, AlertCircle, Check, X, Send
 } from 'lucide-react';
 
 type QuizQuestion = GenerateQuizQuestionsOutput['questions'][0];
@@ -23,6 +24,7 @@ type QuizQuestion = GenerateQuizQuestionsOutput['questions'][0];
 export default function QuizifyPage() {
   const [activeTab, setActiveTab] = useState<string>('paste');
   const [rawContent, setRawContent] = useState<string>('');
+  const [urlInput, setUrlInput] = useState<string>('');
   const [summary, setSummary] = useState<string>('');
   
   const [quizSettings, setQuizSettings] = useState<Partial<GenerateQuizQuestionsInput>>({
@@ -39,6 +41,7 @@ export default function QuizifyPage() {
   const [isLoadingSummary, setIsLoadingSummary] = useState<boolean>(false);
   const [isLoadingQuiz, setIsLoadingQuiz] = useState<boolean>(false);
   const [isLoadingPdf, setIsLoadingPdf] = useState<boolean>(false);
+  const [isLoadingUrl, setIsLoadingUrl] = useState<boolean>(false);
   const [currentYear, setCurrentYear] = useState<number | null>(null);
 
   const { toast } = useToast();
@@ -47,15 +50,20 @@ export default function QuizifyPage() {
     setCurrentYear(new Date().getFullYear());
   }, []);
 
+  const resetQuizState = () => {
+    setSummary('');
+    setQuizQuestions([]);
+    setUserAnswers({});
+    setQuizSubmitted(false);
+    setQuizScore(0);
+  };
+
   const handleTxtUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       if (file.type === 'text/plain') {
         setRawContent(''); 
-        setSummary('');
-        setQuizQuestions([]);
-        setUserAnswers({});
-        setQuizSubmitted(false);
+        resetQuizState();
         try {
           const text = await file.text();
           setRawContent(text);
@@ -78,10 +86,7 @@ export default function QuizifyPage() {
       if (file.type === 'application/pdf') {
         setIsLoadingPdf(true);
         setRawContent('');
-        setSummary('');
-        setQuizQuestions([]);
-        setUserAnswers({});
-        setQuizSubmitted(false);
+        resetQuizState();
 
         try {
           const reader = new FileReader();
@@ -89,16 +94,16 @@ export default function QuizifyPage() {
             const pdfDataUri = reader.result as string;
             try {
               const result: ExtractTextFromPdfOutput = await extractTextFromPdf({ pdfDataUri });
-              if (result.extractedText && result.extractedText.trim() !== '') {
+              if (result.extractedText && !result.extractedText.startsWith('Error:')) {
                 setRawContent(result.extractedText);
                 toast({ title: 'PDF content extracted successfully!', description: 'Content loaded into the text area.' });
                 setActiveTab('paste'); 
               } else {
-                toast({ title: 'PDF Processing', description: 'Could not extract text from the PDF, or the PDF is empty/unreadable by AI.', variant: 'default' });
+                toast({ title: 'PDF Processing Failed', description: result.extractedText || 'Could not extract text from the PDF, or the PDF is empty/unreadable by AI.', variant: 'destructive' });
               }
             } catch (apiError) {
               console.error('Error extracting text from PDF:', apiError);
-              toast({ title: 'PDF Processing Failed', description: 'Could not extract text from the PDF. The file might be corrupted or unsupported.', variant: 'destructive' });
+              toast({ title: 'PDF Processing Failed', description: 'An error occurred during AI processing of the PDF.', variant: 'destructive' });
             } finally {
               setIsLoadingPdf(false);
             }
@@ -121,6 +126,40 @@ export default function QuizifyPage() {
     }
   };
 
+  const handleUrlSubmit = async () => {
+    if (!urlInput.trim()) {
+      toast({ title: 'URL is empty', description: 'Please provide a URL to fetch content from.', variant: 'destructive' });
+      return;
+    }
+    try {
+      // Basic client-side validation for URL format
+      new URL(urlInput);
+    } catch (_) {
+      toast({ title: 'Invalid URL', description: 'Please enter a valid URL (e.g., https://example.com).', variant: 'destructive'});
+      return;
+    }
+
+    setIsLoadingUrl(true);
+    setRawContent('');
+    resetQuizState();
+    try {
+      const result: ExtractContentFromUrlOutput = await extractContentFromUrl({ url: urlInput });
+      if (result.extractedText && !result.extractedText.startsWith('Error:')) {
+        setRawContent(result.extractedText);
+        toast({ title: 'URL content fetched successfully!', description: 'Content loaded into the text area.' });
+        setActiveTab('paste');
+      } else {
+         toast({ title: 'URL Fetching Failed', description: result.extractedText || 'Could not extract text from the URL.', variant: 'destructive' });
+      }
+    } catch (error: any) {
+      console.error('Error fetching content from URL:', error);
+      toast({ title: 'URL Fetching Error', description: error.message || 'An unexpected error occurred.', variant: 'destructive' });
+    } finally {
+      setIsLoadingUrl(false);
+    }
+  };
+
+
   const handleSummarizeContent = async () => {
     if (!rawContent.trim()) {
       toast({ title: 'Content is empty', description: 'Please provide some content to summarize.', variant: 'destructive' });
@@ -133,8 +172,13 @@ export default function QuizifyPage() {
     setQuizSubmitted(false);
     try {
       const result: SummarizeContentOutput = await summarizeContent({ content: rawContent });
-      setSummary(result.summary);
-      toast({ title: 'Content summarized successfully!' });
+      if (result.summary && !result.summary.startsWith('Error:')) {
+        setSummary(result.summary);
+        toast({ title: 'Content summarized successfully!' });
+      } else {
+        setSummary('');
+        toast({ title: 'Summarization Failed', description: result.summary || 'The AI could not summarize the content.', variant: 'destructive'});
+      }
     } catch (error) {
       console.error('Error summarizing content:', error);
       toast({ title: 'Summarization failed', description: 'Could not summarize the content. Please try again.', variant: 'destructive' });
@@ -170,7 +214,7 @@ export default function QuizifyPage() {
         toast({ title: 'Quiz generated successfully!' });
       } else {
         setQuizQuestions([]);
-        toast({ title: 'Quiz Generation', description: 'No questions were generated. The summary might be too short, or the AI could not fulfill the request with the current settings.', variant: 'default' });
+        toast({ title: 'Quiz Generation Failed', description: 'No questions were generated. The summary might be too short, or the AI could not fulfill the request with the current settings.', variant: 'default' });
       }
     } catch (error) {
       console.error('Error generating quiz:', error);
@@ -200,6 +244,7 @@ export default function QuizifyPage() {
     window.print();
   };
 
+  const anyLoading = isLoadingSummary || isLoadingQuiz || isLoadingPdf || isLoadingUrl;
   const allQuestionsAnswered = Object.keys(userAnswers).length === quizQuestions.length && quizQuestions.length > 0;
 
   return (
@@ -231,18 +276,18 @@ export default function QuizifyPage() {
               <TabsTrigger value="pdf" className="text-xs sm:text-sm">
                 <FileText className="mr-1 sm:mr-2 h-4 w-4" /> Upload .PDF
               </TabsTrigger>
-              <TabsTrigger value="url" className="text-xs sm:text-sm" disabled>
+              <TabsTrigger value="url" className="text-xs sm:text-sm">
                 <LinkIcon className="mr-1 sm:mr-2 h-4 w-4" /> Enter URL
               </TabsTrigger>
             </TabsList>
             <TabsContent value="paste">
               <Textarea
-                placeholder="Paste your content here..."
+                placeholder="Paste your content here, or it will appear here after uploading a file or fetching from a URL."
                 value={rawContent}
                 onChange={(e) => setRawContent(e.target.value)}
                 rows={10}
                 className="border-primary focus:ring-primary"
-                disabled={isLoadingPdf || isLoadingSummary || isLoadingQuiz}
+                disabled={anyLoading}
               />
             </TabsContent>
             <TabsContent value="txt">
@@ -251,7 +296,7 @@ export default function QuizifyPage() {
                 accept=".txt" 
                 onChange={handleTxtUpload} 
                 className="cursor-pointer file:text-primary file:font-semibold hover:file:bg-accent/10" 
-                disabled={isLoadingPdf || isLoadingSummary || isLoadingQuiz}
+                disabled={anyLoading}
               />
               <p className="text-sm text-muted-foreground mt-2">
                 Upload a plain text (.txt) file. The content will appear in the 'Paste Text' tab.
@@ -263,11 +308,11 @@ export default function QuizifyPage() {
                 accept=".pdf" 
                 onChange={handlePdfUpload} 
                 className="cursor-pointer file:text-primary file:font-semibold hover:file:bg-accent/10" 
-                disabled={isLoadingPdf || isLoadingSummary || isLoadingQuiz}
+                disabled={anyLoading}
               />
               {isLoadingPdf ? (
                  <p className="text-sm text-muted-foreground mt-2 flex items-center">
-                   <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing PDF...
+                   <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Processing PDF... This may take a moment.
                  </p>
               ) : (
                 <p className="text-sm text-muted-foreground mt-2">
@@ -276,15 +321,34 @@ export default function QuizifyPage() {
               )}
             </TabsContent>
             <TabsContent value="url">
-              <Input type="url" placeholder="https://example.com" className="border-primary focus:ring-primary" disabled/>
-              <p className="text-sm text-muted-foreground mt-2">
-                Direct URL processing is coming soon! For now, please copy the relevant content from the webpage and paste it into the &quot;Paste Text&quot; tab.
-              </p>
+              <div className="flex space-x-2">
+                <Input 
+                  type="url" 
+                  placeholder="https://example.com/article" 
+                  value={urlInput}
+                  onChange={(e) => setUrlInput(e.target.value)}
+                  className="border-primary focus:ring-primary flex-grow" 
+                  disabled={anyLoading}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleUrlSubmit(); }}
+                />
+                <Button onClick={handleUrlSubmit} disabled={anyLoading || !urlInput.trim()} className="bg-primary hover:bg-primary/90">
+                  {isLoadingUrl ? <Loader2 className="h-5 w-5 animate-spin" /> : <Send className="h-5 w-5" />}
+                </Button>
+              </div>
+              {isLoadingUrl ? (
+                <p className="text-sm text-muted-foreground mt-2 flex items-center">
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Fetching and processing URL content...
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground mt-2">
+                  Enter a public URL. The AI will attempt to extract the main content, which will appear in the 'Paste Text' tab.
+                </p>
+              )}
             </TabsContent>
           </Tabs>
           <Button
             onClick={handleSummarizeContent}
-            disabled={!rawContent.trim() || isLoadingSummary || isLoadingQuiz || isLoadingPdf}
+            disabled={!rawContent.trim() || anyLoading}
             className="mt-6 w-full sm:w-auto bg-primary hover:bg-primary/90"
           >
             {isLoadingSummary ? (
@@ -331,7 +395,7 @@ export default function QuizifyPage() {
                   placeholder="e.g., Biology, History" 
                   value={quizSettings.subject || ''}
                   onChange={(e) => handleQuizSettingChange('subject', e.target.value)}
-                  disabled={isLoadingQuiz}
+                  disabled={isLoadingQuiz || anyLoading}
                 />
               </div>
               <div>
@@ -345,7 +409,7 @@ export default function QuizifyPage() {
                   max="20"
                   value={quizSettings.numQuestions || ''}
                   onChange={(e) => handleQuizSettingChange('numQuestions', parseInt(e.target.value, 10))}
-                  disabled={isLoadingQuiz}
+                  disabled={isLoadingQuiz || anyLoading}
                   placeholder="e.g., 5"
                 />
               </div>
@@ -358,7 +422,7 @@ export default function QuizifyPage() {
                 <Select 
                   value={quizSettings.difficulty || 'medium'} 
                   onValueChange={(value) => handleQuizSettingChange('difficulty', value)}
-                  disabled={isLoadingQuiz}
+                  disabled={isLoadingQuiz || anyLoading}
                 >
                   <SelectTrigger id="quizDifficulty">
                     <SelectValue placeholder="Select difficulty" />
@@ -377,7 +441,7 @@ export default function QuizifyPage() {
                 <Select 
                   value={quizSettings.questionFormat || 'mcq'} 
                   onValueChange={(value) => handleQuizSettingChange('questionFormat', value)}
-                  disabled={isLoadingQuiz}
+                  disabled={isLoadingQuiz || anyLoading}
                 >
                   <SelectTrigger id="questionFormat">
                     <SelectValue placeholder="Select format" />
@@ -391,7 +455,7 @@ export default function QuizifyPage() {
             </div>
              <Button
               onClick={handleGenerateQuiz}
-              disabled={isLoadingQuiz || !summary.trim() || isLoadingPdf || isLoadingSummary}
+              disabled={isLoadingQuiz || !summary.trim() || anyLoading}
               className="mt-4 w-full sm:w-auto bg-accent hover:bg-accent/90"
             >
               {isLoadingQuiz ? (
@@ -407,6 +471,9 @@ export default function QuizifyPage() {
 
       {quizQuestions.length > 0 && (
         <Card className="mt-8 shadow-xl" id="printableArea">
+           <div className="printable-quiz-title hidden print:block">
+             Quiz {quizSettings.subject ? ` - ${quizSettings.subject}` : ''}
+           </div>
           <CardHeader className="no-print">
             <CardTitle className="text-2xl font-headline flex items-center justify-between">
               <div className="flex items-center">
@@ -414,14 +481,9 @@ export default function QuizifyPage() {
               </div>
             </CardTitle>
           </CardHeader>
-          {quizSubmitted && (
-            <div className="printable-quiz-title hidden print:block">
-              Quiz Results
-            </div>
-          )}
-          <CardContent className={quizSubmitted ? "pt-6" : "pt-0"}> {/* Adjust padding if title is printed */}
+          <CardContent className={quizSubmitted ? "pt-6 print:pt-0" : "pt-0 print:pt-0"}>
              {quizSubmitted && (
-              <div className="mb-6 p-4 bg-primary/10 border border-primary/30 rounded-md text-center">
+              <div className="mb-6 p-4 bg-primary/10 border border-primary/30 rounded-md text-center no-print">
                 <h3 className="text-xl font-semibold text-primary">Your Score: {quizScore} / {quizQuestions.length}</h3>
                 <p className="text-muted-foreground">
                   {quizScore === quizQuestions.length ? "Excellent! Perfect score!" : 
@@ -433,35 +495,35 @@ export default function QuizifyPage() {
             )}
             <div className="space-y-6">
               {quizQuestions.map((q, index) => (
-                <div key={index} className={`p-4 border rounded-lg shadow-sm bg-card transition-shadow ${quizSubmitted ? (userAnswers[index] === q.answer ? 'border-green-500' : 'border-red-500') : 'border-primary/30 hover:shadow-md'}`}>
-                  <p className="font-semibold mb-3 text-base text-primary">
+                <div key={index} className={`p-4 border rounded-lg shadow-sm bg-card transition-shadow ${quizSubmitted ? (userAnswers[index] === q.answer ? 'border-green-500 print:border-green-500' : 'border-red-500 print:border-red-500') : 'border-primary/30 hover:shadow-md print:border-gray-300'}`}>
+                  <p className="font-semibold mb-3 text-base text-primary print:text-black">
                     {index + 1}. {q.question}
                   </p>
                   <RadioGroup
                     onValueChange={(value) => handleQuizAnswerChange(index, value)}
                     value={userAnswers[index] || ''}
                     className="space-y-2"
-                    disabled={isLoadingPdf || isLoadingSummary || isLoadingQuiz || quizSubmitted}
+                    disabled={anyLoading || quizSubmitted}
                   >
                     {q.options.map((option, optIndex) => (
                       <div key={optIndex} className={`flex items-center space-x-3 p-2 rounded-md transition-colors ${quizSubmitted ? '' : 'hover:bg-accent/10'}`}>
                         <RadioGroupItem 
                           value={option} 
                           id={`q${index}-opt${optIndex}`} 
-                          className="border-primary text-primary focus:ring-primary disabled:opacity-70"
+                          className="border-primary text-primary focus:ring-primary disabled:opacity-70 print:border-gray-500 print:text-gray-700"
                           disabled={quizSubmitted}
                         />
-                        <Label htmlFor={`q${index}-opt${optIndex}`} className={`text-sm flex-1 ${quizSubmitted ? '' : 'cursor-pointer'}`}>
+                        <Label htmlFor={`q${index}-opt${optIndex}`} className={`text-sm flex-1 print:text-black ${quizSubmitted ? '' : 'cursor-pointer'}`}>
                           {option}
                         </Label>
-                        {quizSubmitted && option === q.answer && <Check className="h-5 w-5 text-green-600" />}
-                        {quizSubmitted && option !== q.answer && userAnswers[index] === option && <X className="h-5 w-5 text-red-600" />}
+                        {quizSubmitted && option === q.answer && <Check className="h-5 w-5 text-green-600 print:text-green-600" />}
+                        {quizSubmitted && option !== q.answer && userAnswers[index] === option && <X className="h-5 w-5 text-red-600 print:text-red-600" />}
                       </div>
                     ))}
                   </RadioGroup>
                   {quizSubmitted && (
-                     <p className={`text-xs mt-2 font-medium ${userAnswers[index] === q.answer ? 'text-green-700' : 'text-red-700'}`}>
-                       {userAnswers[index] === q.answer ? 'Your answer was correct.' : `Your answer was incorrect. Correct Answer: ${q.answer}`}
+                     <p className={`text-xs mt-2 font-medium print:text-sm ${userAnswers[index] === q.answer ? 'text-green-700 print:text-green-700' : 'text-red-700 print:text-red-700'}`}>
+                       {userAnswers[index] === q.answer ? <><CheckCircle2 className="inline h-4 w-4 mr-1" />Your answer was correct.</> : <><AlertCircle className="inline h-4 w-4 mr-1" />Your answer was incorrect. Correct Answer: {q.answer}</>}
                      </p>
                   )}
                 </div>
@@ -470,19 +532,33 @@ export default function QuizifyPage() {
             {!quizSubmitted && quizQuestions.length > 0 && (
               <Button
                 onClick={handleSubmitQuiz}
-                disabled={!allQuestionsAnswered || isLoadingQuiz}
+                disabled={!allQuestionsAnswered || isLoadingQuiz || anyLoading}
                 className="mt-6 w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white no-print"
               >
                 <CheckCircle2 className="mr-2 h-5 w-5" /> Submit Quiz
               </Button>
             )}
             {quizSubmitted && (
-              <Button
-                onClick={handlePrint}
-                className="mt-6 w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white no-print"
-              >
-                <Printer className="mr-2 h-5 w-5" /> Print Quiz & Results
-              </Button>
+              <div className="mt-6 space-x-0 space-y-2 sm:space-x-2 sm:space-y-0 flex flex-col sm:flex-row no-print">
+                <Button
+                  onClick={handlePrint}
+                  className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  <Printer className="mr-2 h-5 w-5" /> Print Quiz & Results
+                </Button>
+                <Button
+                  onClick={() => {
+                    setActiveTab('paste'); 
+                    setRawContent(''); 
+                    setUrlInput('');
+                    resetQuizState();
+                  }}
+                  variant="outline"
+                  className="w-full sm:w-auto"
+                >
+                  Start New Quiz
+                </Button>
+              </div>
             )}
           </CardContent>
         </Card>
@@ -491,7 +567,7 @@ export default function QuizifyPage() {
         {currentYear !== null ? (
           `Powered by AI & Next.js | Quizify AI © ${currentYear}`
         ) : (
-          'Loading footer...'
+          <Loader2 className="mx-auto h-5 w-5 animate-spin" />
         )}
       </footer>
     </div>
