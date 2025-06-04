@@ -1,6 +1,4 @@
 
-'use server';
-
 // This module holds the API key in memory on the server.
 // It's intentionally simple for local development.
 // NOT SUITABLE FOR PRODUCTION if used to bypass secure env vars.
