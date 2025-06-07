@@ -15,6 +15,7 @@ import { summarizeContent, type SummarizeContentOutput } from '@/ai/flows/summar
 import { generateQuizQuestions, type GenerateQuizQuestionsInput, type GenerateQuizQuestionsOutput } from '@/ai/flows/generate-quiz-questions';
 import { extractTextFromPdf, type ExtractTextFromPdfOutput } from '@/ai/flows/extract-text-from-pdf-flow';
 import { extractContentFromUrl, type ExtractContentFromUrlInput, type ExtractContentFromUrlOutput } from '@/ai/flows/extract-content-from-url-flow';
+import { ApiKeyManagerDialog } from '@/components/ui/api-key-manager-dialog';
 import { 
   ClipboardType, FileText, Link as LinkIcon, Loader2, BookText, ListChecks, Settings2, HelpCircle, Gauge, ListOrdered, BookOpenCheck, Printer, CheckCircle2, AlertCircle, Check, X, Send, KeyRound
 } from 'lucide-react';
@@ -44,6 +45,8 @@ export default function QuizifyPage() {
   const [isLoadingPdf, setIsLoadingPdf] = useState<boolean>(false);
   const [isLoadingUrl, setIsLoadingUrl] = useState<boolean>(false);
   const [currentYear, setCurrentYear] = useState<number | null>(null);
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
+
 
   const { toast } = useToast();
 
@@ -181,7 +184,12 @@ export default function QuizifyPage() {
       }
     } catch (error: any) {
       console.error('Error summarizing content:', error);
-      toast({ title: 'Summarization failed', description: error.message || 'Could not summarize the content. Please try again.', variant: 'destructive' });
+      // Check for specific Genkit/API key related error messages if possible
+      if (error.message && (error.message.includes('API key not valid') || error.message.includes('PERMISSION_DENIED'))) {
+        toast({ title: 'Summarization Failed: API Key Issue', description: 'Please check your Google AI API key in the .env file and restart the server.', variant: 'destructive' });
+      } else {
+        toast({ title: 'Summarization failed', description: error.message || 'Could not summarize the content. Please try again.', variant: 'destructive' });
+      }
     } finally {
       setIsLoadingSummary(false);
     }
@@ -218,7 +226,11 @@ export default function QuizifyPage() {
       }
     } catch (error: any) {
       console.error('Error generating quiz:', error);
-      toast({ title: 'Quiz generation failed', description: error.message || 'Could not generate the quiz. Please try again.', variant: 'destructive' });
+       if (error.message && (error.message.includes('API key not valid') || error.message.includes('PERMISSION_DENIED'))) {
+        toast({ title: 'Quiz Generation Failed: API Key Issue', description: 'Please check your Google AI API key in the .env file and restart the server.', variant: 'destructive' });
+      } else {
+        toast({ title: 'Quiz generation failed', description: error.message || 'Could not generate the quiz. Please try again.', variant: 'destructive' });
+      }
     } finally {
       setIsLoadingQuiz(false);
     }
@@ -284,7 +296,10 @@ export default function QuizifyPage() {
               <Textarea
                 placeholder="Paste your content here, or it will appear here after uploading a file or fetching from a URL."
                 value={rawContent}
-                onChange={(e) => setRawContent(e.target.value)}
+                onChange={(e) => {
+                  setRawContent(e.target.value);
+                  resetQuizState(); 
+                }}
                 rows={10}
                 className="border-primary focus:ring-primary"
                 disabled={anyLoading}
@@ -408,7 +423,7 @@ export default function QuizifyPage() {
                   min="1"
                   max="20"
                   value={quizSettings.numQuestions || ''}
-                  onChange={(e) => handleQuizSettingChange('numQuestions', parseInt(e.target.value, 10))}
+                  onChange={(e) => handleQuizSettingChange('numQuestions', parseInt(e.target.value, 10) || 5)}
                   disabled={isLoadingQuiz || anyLoading}
                   placeholder="e.g., 5"
                 />
@@ -589,10 +604,16 @@ export default function QuizifyPage() {
             <Loader2 className="mx-auto h-5 w-5 animate-spin" />
             )}
         </div>
-        <p className="text-xs text-muted-foreground">
-          To use AI features, ensure your GOOGLE_API_KEY is set in the .env file and restart the server.
-        </p>
+        <div className="text-xs text-muted-foreground">
+            <p>
+            To use AI features, ensure your GOOGLE_API_KEY is set in the .env file and restart the server.
+            </p>
+            <Button variant="link" className="p-0 h-auto text-xs" onClick={() => setIsApiKeyModalOpen(true)}>
+                Manage API Key (Local Convenience)
+            </Button>
+        </div>
       </footer>
+      <ApiKeyManagerDialog isOpen={isApiKeyModalOpen} onOpenChange={setIsApiKeyModalOpen} />
     </div>
   );
 }
