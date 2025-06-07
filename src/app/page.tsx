@@ -15,7 +15,6 @@ import { summarizeContent, type SummarizeContentOutput } from '@/ai/flows/summar
 import { generateQuizQuestions, type GenerateQuizQuestionsInput, type GenerateQuizQuestionsOutput } from '@/ai/flows/generate-quiz-questions';
 import { extractTextFromPdf, type ExtractTextFromPdfOutput } from '@/ai/flows/extract-text-from-pdf-flow';
 import { extractContentFromUrl, type ExtractContentFromUrlInput, type ExtractContentFromUrlOutput } from '@/ai/flows/extract-content-from-url-flow';
-import { ApiKeyManagerDialog } from '@/components/ui/api-key-manager-dialog';
 import { 
   ClipboardType, FileText, Link as LinkIcon, Loader2, BookText, ListChecks, Settings2, HelpCircle, Gauge, ListOrdered, BookOpenCheck, Printer, CheckCircle2, AlertCircle, Check, X, Send, KeyRound
 } from 'lucide-react';
@@ -45,7 +44,6 @@ export default function QuizifyPage() {
   const [isLoadingPdf, setIsLoadingPdf] = useState<boolean>(false);
   const [isLoadingUrl, setIsLoadingUrl] = useState<boolean>(false);
   const [currentYear, setCurrentYear] = useState<number | null>(null);
-  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState<boolean>(false);
 
   const { toast } = useToast();
 
@@ -591,11 +589,10 @@ export default function QuizifyPage() {
             <Loader2 className="mx-auto h-5 w-5 animate-spin" />
             )}
         </div>
-        <Button variant="outline" size="sm" onClick={() => setIsApiKeyModalOpen(true)}>
-            <KeyRound className="mr-2 h-4 w-4" /> Manage API Key
-        </Button>
+        <p className="text-xs text-muted-foreground">
+          To use AI features, ensure your GOOGLE_API_KEY is set in the .env file and restart the server.
+        </p>
       </footer>
-      <ApiKeyManagerDialog isOpen={isApiKeyModalOpen} onOpenChange={setIsApiKeyModalOpen} />
     </div>
   );
 }
