@@ -115,31 +115,62 @@
   body {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
+    /* background-color: white !important; */ /* Optional: Tailwind bg-background should become white via CSS variables or browser default */
   }
-  .no-print, .no-print * {
+
+  /* Hide elements not intended for print */
+  .no-print {
     display: none !important;
-    visibility: hidden !important;
   }
-  #printableArea, #printableArea * {
-    visibility: visible !important;
-  }
+
+  /* Ensure the printable area is displayed and styled for print */
   #printableArea {
-    position: absolute !important;
-    left: 0 !important;
-    top: 0 !important;
-    width: 100% !important;
-    margin: 0 !important;
+    display: block !important; /* Ensure it's displayed as a block */
+    visibility: visible !important; /* Explicitly make it visible */
+    position: static !important; /* Override any absolute/fixed positioning from screen styles */
+    width: auto !important; /* Allow it to take full printable width */
+    margin: 20mm !important; /* Add standard printer margins */
     padding: 0 !important;
     box-shadow: none !important;
     border: none !important;
+    font-size: 11pt; /* Adjust base font size for print if desired */
   }
-   /* Ensure Quiz Title for print is visible */
+
+  /* Ensure children of the printable area are visible by default.
+     Avoid forcing general colors/backgrounds here to let Tailwind print variants in JSX take precedence. */
+  #printableArea * {
+    visibility: visible !important;
+    box-shadow: none !important;
+    /* border-color: #ccc !important; */ /* Let Tailwind variants handle border colors */
+  }
+
+   /* Ensure Quiz Title for print is visible and styled */
   .printable-quiz-title {
-    /* visibility and display are handled by print:block utility class */
+    display: block !important; /* Ensure title is block for layout */
     text-align: center;
-    font-size: 1.5rem; /* 24px */
+    font-size: 1.4rem; /* Adjusted for 11pt base for example */
     font-weight: bold;
-    margin-bottom: 1rem; /* 16px */
-    padding-top: 1.5rem; /* Add padding to the top for the title */
+    margin-bottom: 1rem;
+    color: black !important; /* Ensure title is black */
   }
+
+  /* Reduce spacing for quiz items on print for better density */
+  #printableArea .space-y-6 > div { /* Targets each question block */
+    margin-bottom: 1rem !important; /* Reduce space between questions */
+    padding: 0.5rem !important; /* Reduce padding within question block */
+    /* border-width: 1px !important; */ /* Let Tailwind print:border-gray-300 etc. handle this in page.tsx */
+  }
+  #printableArea .mb-3 { /* Question text margin */
+    margin-bottom: 0.5rem !important;
+  }
+  #printableArea .space-y-2 > div { /* Radio option container */
+    padding: 0.1rem 0 !important; /* Reduce padding for radio options */
+  }
+
+  /* Shadcn UI specific overrides if necessary - for now, relying on Tailwind print variants in page.tsx */
+  /* For example, to ensure icons are visible if they are colored by theme variables: */
+  /* #printableArea .lucide-check { color: green !important; } */
+  /* #printableArea .lucide-x { color: red !important; } */
+  /* However, print:text-green-600 etc. in page.tsx should be preferred */
 }
+
