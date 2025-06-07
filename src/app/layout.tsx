@@ -3,7 +3,7 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
-  title: 'Quizify AI',
+  title: 'Quizify Ai: Ai powered interactive quiz generator',
   description: 'AI-Powered Interactive Quiz Generator',
 };
 

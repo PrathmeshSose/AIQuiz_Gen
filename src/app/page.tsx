@@ -262,10 +262,10 @@ export default function QuizifyPage() {
     <div className="container mx-auto p-4 sm:p-6 lg:p-8 max-w-3xl">
       <header className="mb-8 text-center no-print">
         <h1 className="text-4xl font-headline font-bold text-primary flex items-center justify-center">
-          <Settings2 className="mr-3 h-10 w-10" /> Quizify AI
+          <Settings2 className="mr-3 h-10 w-10" /> Quizify Ai
         </h1>
         <p className="text-muted-foreground mt-2">
-          Upload content, get summaries, and generate interactive quizzes effortlessly.
+          Ai powered interactive quiz generator
         </p>
       </header>
 
@@ -497,7 +497,7 @@ export default function QuizifyPage() {
           </CardHeader>
           <CardContent className={quizSubmitted ? "pt-6 print:pt-0" : "pt-0 print:pt-0"}>
              {quizSubmitted && (
-              <div className="mb-6 p-4 bg-primary/10 border border-primary/30 rounded-md text-center print:bg-transparent print:border-none print:p-2 print:mb-4">
+              <div className="mb-6 p-4 bg-primary/10 border border-primary/30 rounded-md text-center print:bg-transparent print:border-none print:p-2 print:mb-4 print:text-black">
                 <h3 className="text-xl font-semibold text-primary print:text-black print:text-lg">Your Score: {quizScore} / {quizQuestions.length}</h3>
                 <p className="text-muted-foreground print:text-black print:text-sm">
                   {quizScore === quizQuestions.length ? "Excellent! Perfect score!" : 
@@ -509,7 +509,6 @@ export default function QuizifyPage() {
             )}
             <div className="space-y-6">
               {quizQuestions.map((q, index) => {
-                const isUserAnswer = userAnswers[index] === option; // This line has a bug: 'option' is not defined in this scope. It should be inside the options.map
                 return (
                 <div 
                   key={index} 
@@ -534,9 +533,7 @@ export default function QuizifyPage() {
                       const radioItemPrintClasses = quizSubmitted
                         ? cn(
                             "print:disabled:opacity-100",
-                            isCurrentOptionUserAnswer
-                              ? "print:border-black print:text-black" // User's selected answer
-                              : "print:border-gray-400 print:text-gray-400" // Other options
+                             isCurrentOptionUserAnswer ? "print:border-black print:text-black" : "print:border-gray-400 print:text-gray-400"
                           )
                         : "print:border-gray-500 print:text-gray-700";
                       
@@ -604,7 +601,7 @@ export default function QuizifyPage() {
        <footer className="text-center mt-12 py-4 text-sm text-muted-foreground border-t no-print">
         <div className="mb-2">
             {currentYear !== null ? (
-            `Powered by AI & Next.js | Quizify AI © ${currentYear}`
+            `Powered by AI & Next.js | Quizify Ai © ${currentYear}`
             ) : (
             <Loader2 className="mx-auto h-5 w-5 animate-spin" />
             )}
