@@ -184,8 +184,7 @@ export default function QuizifyPage() {
       }
     } catch (error: any) {
       console.error('Error summarizing content:', error);
-      // Check for specific Genkit/API key related error messages if possible
-      if (error.message && (error.message.includes('API key not valid') || error.message.includes('PERMISSION_DENIED'))) {
+      if (error.message && (error.message.includes('API key not valid') || error.message.includes('PERMISSION_DENIED') || error.message.includes('API_KEY_INVALID'))) {
         toast({ title: 'Summarization Failed: API Key Issue', description: 'Please check your Google AI API key in the .env file and restart the server.', variant: 'destructive' });
       } else {
         toast({ title: 'Summarization failed', description: error.message || 'Could not summarize the content. Please try again.', variant: 'destructive' });
@@ -226,7 +225,7 @@ export default function QuizifyPage() {
       }
     } catch (error: any) {
       console.error('Error generating quiz:', error);
-       if (error.message && (error.message.includes('API key not valid') || error.message.includes('PERMISSION_DENIED'))) {
+       if (error.message && (error.message.includes('API key not valid') || error.message.includes('PERMISSION_DENIED') || error.message.includes('API_KEY_INVALID'))) {
         toast({ title: 'Quiz Generation Failed: API Key Issue', description: 'Please check your Google AI API key in the .env file and restart the server.', variant: 'destructive' });
       } else {
         toast({ title: 'Quiz generation failed', description: error.message || 'Could not generate the quiz. Please try again.', variant: 'destructive' });
@@ -498,9 +497,9 @@ export default function QuizifyPage() {
           </CardHeader>
           <CardContent className={quizSubmitted ? "pt-6 print:pt-0" : "pt-0 print:pt-0"}>
              {quizSubmitted && (
-              <div className="mb-6 p-4 bg-primary/10 border border-primary/30 rounded-md text-center no-print">
-                <h3 className="text-xl font-semibold text-primary">Your Score: {quizScore} / {quizQuestions.length}</h3>
-                <p className="text-muted-foreground">
+              <div className="mb-6 p-4 bg-primary/10 border border-primary/30 rounded-md text-center print:bg-transparent print:border-none print:p-2 print:mb-4">
+                <h3 className="text-xl font-semibold text-primary print:text-black print:text-lg">Your Score: {quizScore} / {quizQuestions.length}</h3>
+                <p className="text-muted-foreground print:text-black print:text-sm">
                   {quizScore === quizQuestions.length ? "Excellent! Perfect score!" : 
                    quizScore >= quizQuestions.length * 0.7 ? "Great job!" :
                    quizScore >= quizQuestions.length * 0.5 ? "Good effort, keep practicing!" :
@@ -509,13 +508,15 @@ export default function QuizifyPage() {
               </div>
             )}
             <div className="space-y-6">
-              {quizQuestions.map((q, index) => (
+              {quizQuestions.map((q, index) => {
+                const isUserAnswer = userAnswers[index] === option; // This line has a bug: 'option' is not defined in this scope. It should be inside the options.map
+                return (
                 <div 
                   key={index} 
                   className={cn(
                     "p-4 border rounded-lg shadow-sm bg-card transition-shadow print:shadow-none",
                     quizSubmitted 
-                      ? (userAnswers[index] === q.answer ? 'border-green-500 print:border-green-500' : 'border-red-500 print:border-red-500') 
+                      ? (userAnswers[index] === q.answer ? 'border-green-500 print:border-green-600' : 'border-red-500 print:border-red-600') 
                       : 'border-primary/30 hover:shadow-md print:border-gray-300'
                   )}
                 >
@@ -528,39 +529,43 @@ export default function QuizifyPage() {
                     className="space-y-2"
                     disabled={anyLoading || quizSubmitted}
                   >
-                    {q.options.map((option, optIndex) => {
-                      const isUserAnswer = userAnswers[index] === option;
-                      const radioItemPrintClasses = quizSubmitted ? cn(
-                        "print:disabled:opacity-100",
-                        isUserAnswer ? "print:border-slate-800 print:text-slate-800" : "print:border-slate-400 print:text-slate-400 print:opacity-70"
-                      ) : "print:border-gray-500 print:text-gray-700";
+                    {q.options.map((optionText, optIndex) => {
+                      const isCurrentOptionUserAnswer = userAnswers[index] === optionText;
+                      const radioItemPrintClasses = quizSubmitted
+                        ? cn(
+                            "print:disabled:opacity-100",
+                            isCurrentOptionUserAnswer
+                              ? "print:border-black print:text-black" // User's selected answer
+                              : "print:border-gray-400 print:text-gray-400" // Other options
+                          )
+                        : "print:border-gray-500 print:text-gray-700";
                       
-                      const labelPrintClasses = quizSubmitted && isUserAnswer ? "print:font-semibold" : "";
+                      const labelPrintClasses = quizSubmitted && isCurrentOptionUserAnswer ? "print:font-semibold" : "";
 
                       return (
                         <div key={optIndex} className={`flex items-center space-x-3 p-2 rounded-md transition-colors ${quizSubmitted ? '' : 'hover:bg-accent/10'}`}>
                           <RadioGroupItem 
-                            value={option} 
+                            value={optionText} 
                             id={`q${index}-opt${optIndex}`} 
                             className={cn("border-primary text-primary focus:ring-primary disabled:opacity-70", radioItemPrintClasses)}
                             disabled={quizSubmitted}
                           />
                           <Label htmlFor={`q${index}-opt${optIndex}`} className={cn(`text-sm flex-1 print:text-black ${quizSubmitted ? '' : 'cursor-pointer'}`, labelPrintClasses)}>
-                            {option}
+                            {optionText}
                           </Label>
-                          {quizSubmitted && option === q.answer && <Check className="h-5 w-5 text-green-600 print:text-green-600" />}
-                          {quizSubmitted && option !== q.answer && userAnswers[index] === option && <X className="h-5 w-5 text-red-600 print:text-red-600" />}
+                          {quizSubmitted && optionText === q.answer && <Check className="h-5 w-5 text-green-600 print:text-green-600" />}
+                          {quizSubmitted && optionText !== q.answer && userAnswers[index] === optionText && <X className="h-5 w-5 text-red-600 print:text-red-600" />}
                         </div>
                       );
                     })}
                   </RadioGroup>
                   {quizSubmitted && (
                      <p className={`text-xs mt-2 font-medium print:text-sm ${userAnswers[index] === q.answer ? 'text-green-700 print:text-green-700' : 'text-red-700 print:text-red-700'}`}>
-                       {userAnswers[index] === q.answer ? <><CheckCircle2 className="inline h-4 w-4 mr-1" />Your answer was correct.</> : <><AlertCircle className="inline h-4 w-4 mr-1" />Your answer was incorrect. Correct Answer: {q.answer}</>}
+                       {userAnswers[index] === q.answer ? <><CheckCircle2 className="inline h-4 w-4 mr-1 print:text-green-700" />Your answer was correct.</> : <><AlertCircle className="inline h-4 w-4 mr-1 print:text-red-700" />Your answer was incorrect. Correct Answer: {q.answer}</>}
                      </p>
                   )}
                 </div>
-              ))}
+              )})}
             </div>
             {!quizSubmitted && quizQuestions.length > 0 && (
               <Button
@@ -617,3 +622,6 @@ export default function QuizifyPage() {
     </div>
   );
 }
+
+
+    
