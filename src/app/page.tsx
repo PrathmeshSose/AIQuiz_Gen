@@ -485,7 +485,7 @@ export default function QuizifyPage() {
 
       {quizQuestions.length > 0 && (
         <Card className="mt-8 shadow-xl" id="printableArea">
-           <div className="printable-quiz-title hidden print:block">
+           <div className="printable-quiz-title hidden print:block print:text-black">
              Quiz {quizSettings.subject ? ` - ${quizSettings.subject}` : ''}
            </div>
           <CardHeader className="no-print">
@@ -497,7 +497,7 @@ export default function QuizifyPage() {
           </CardHeader>
           <CardContent className={quizSubmitted ? "pt-6 print:pt-0" : "pt-0 print:pt-0"}>
              {quizSubmitted && (
-              <div className="mb-6 p-4 bg-primary/10 border border-primary/30 rounded-md text-center print:bg-transparent print:border-none print:p-2 print:mb-4 print:text-black">
+              <div className="mb-6 p-4 bg-primary/10 border border-primary/30 rounded-md text-center print:bg-transparent print:border-none print:p-2 print:mb-4">
                 <h3 className="text-xl font-semibold text-primary print:text-black print:text-lg">Your Score: {quizScore} / {quizQuestions.length}</h3>
                 <p className="text-muted-foreground print:text-black print:text-sm">
                   {quizScore === quizQuestions.length ? "Excellent! Perfect score!" : 
@@ -509,6 +509,7 @@ export default function QuizifyPage() {
             )}
             <div className="space-y-6">
               {quizQuestions.map((q, index) => {
+                const isCurrentOptionUserAnswer = userAnswers[index] === q.answer; 
                 return (
                 <div 
                   key={index} 
@@ -529,15 +530,15 @@ export default function QuizifyPage() {
                     disabled={anyLoading || quizSubmitted}
                   >
                     {q.options.map((optionText, optIndex) => {
-                      const isCurrentOptionUserAnswer = userAnswers[index] === optionText;
+                      const isUserSelection = userAnswers[index] === optionText;
                       const radioItemPrintClasses = quizSubmitted
                         ? cn(
                             "print:disabled:opacity-100",
-                             isCurrentOptionUserAnswer ? "print:border-black print:text-black" : "print:border-gray-400 print:text-gray-400"
+                             isUserSelection ? "print:border-black print:text-black" : "print:border-gray-400 print:text-gray-400"
                           )
                         : "print:border-gray-500 print:text-gray-700";
                       
-                      const labelPrintClasses = quizSubmitted && isCurrentOptionUserAnswer ? "print:font-semibold" : "";
+                      const labelPrintClasses = quizSubmitted && isUserSelection ? "print:font-semibold" : "";
 
                       return (
                         <div key={optIndex} className={`flex items-center space-x-3 p-2 rounded-md transition-colors ${quizSubmitted ? '' : 'hover:bg-accent/10'}`}>
@@ -579,7 +580,7 @@ export default function QuizifyPage() {
                   onClick={handlePrint}
                   className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white"
                 >
-                  <Printer className="mr-2 h-5 w-5" /> Print Quiz & Results
+                  <Printer className="mr-2 h-5 w-5" /> not working
                 </Button>
                 <Button
                   onClick={() => {
@@ -622,3 +623,4 @@ export default function QuizifyPage() {
 
 
     
+
