@@ -497,7 +497,7 @@ export default function QuizifyPage() {
           </CardHeader>
           <CardContent className={quizSubmitted ? "pt-6 print:pt-0" : "pt-0 print:pt-0"}>
              {quizSubmitted && (
-              <div className="mb-6 p-4 bg-primary/10 border border-primary/30 rounded-md text-center print:bg-transparent print:border-none print:p-2 print:mb-4">
+              <div className="mb-6 p-4 bg-primary/10 border border-primary/30 rounded-md text-center print:bg-transparent print:border-none print:p-2 print:mb-4 print:text-black">
                 <h3 className="text-xl font-semibold text-primary print:text-black print:text-lg">Your Score: {quizScore} / {quizQuestions.length}</h3>
                 <p className="text-muted-foreground print:text-black print:text-sm">
                   {quizScore === quizQuestions.length ? "Excellent! Perfect score!" : 
@@ -520,7 +520,7 @@ export default function QuizifyPage() {
                       : 'border-primary/30 hover:shadow-md print:border-gray-300'
                   )}
                 >
-                  <p className="font-semibold mb-3 text-base text-primary print:text-black">
+                  <p className="font-semibold mb-3 text-base text-primary print:text-black quiz-question-text">
                     {index + 1}. {q.question}
                   </p>
                   <RadioGroup
@@ -548,7 +548,7 @@ export default function QuizifyPage() {
                             className={cn("border-primary text-primary focus:ring-primary disabled:opacity-70", radioItemPrintClasses)}
                             disabled={quizSubmitted}
                           />
-                          <Label htmlFor={`q${index}-opt${optIndex}`} className={cn(`text-sm flex-1 print:text-black ${quizSubmitted ? '' : 'cursor-pointer'}`, labelPrintClasses)}>
+                          <Label htmlFor={`q${index}-opt${optIndex}`} className={cn(`text-sm flex-1 print:text-black quiz-option-label ${quizSubmitted ? '' : 'cursor-pointer'}`, labelPrintClasses)}>
                             {optionText}
                           </Label>
                           {quizSubmitted && optionText === q.answer && <Check className="h-5 w-5 text-green-600 print:text-green-600" />}
@@ -580,7 +580,7 @@ export default function QuizifyPage() {
                   onClick={handlePrint}
                   className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white"
                 >
-                  <Printer className="mr-2 h-5 w-5" /> not working
+                  <Printer className="mr-2 h-5 w-5" /> Print Quiz & Results
                 </Button>
                 <Button
                   onClick={() => {
@@ -620,7 +620,4 @@ export default function QuizifyPage() {
     </div>
   );
 }
-
-
     
-

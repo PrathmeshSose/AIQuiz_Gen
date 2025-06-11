@@ -113,64 +113,89 @@
 
 @media print {
   body {
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-    /* background-color: white !important; */ /* Optional: Tailwind bg-background should become white via CSS variables or browser default */
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    background-color: white !important; 
+    color: black !important;
   }
 
-  /* Hide elements not intended for print */
   .no-print {
     display: none !important;
   }
 
-  /* Ensure the printable area is displayed and styled for print */
   #printableArea {
-    display: block !important; /* Ensure it's displayed as a block */
-    visibility: visible !important; /* Explicitly make it visible */
-    position: static !important; /* Override any absolute/fixed positioning from screen styles */
-    width: auto !important; /* Allow it to take full printable width */
-    margin: 20mm !important; /* Add standard printer margins */
+    display: block !important;
+    visibility: visible !important;
+    position: static !important; /* Use static for simpler print flow */
+    width: 100% !important; /* Use 100% of printable area */
+    margin: 15mm !important; /* Adjust margins as needed */
     padding: 0 !important;
     box-shadow: none !important;
     border: none !important;
-    font-size: 11pt; /* Adjust base font size for print if desired */
+    font-size: 10pt !important; /* Slightly smaller base font for print */
+    background-color: white !important;
+    color: black !important;
   }
 
-  /* Ensure children of the printable area are visible by default.
-     Avoid forcing general colors/backgrounds here to let Tailwind print variants in JSX take precedence. */
-  #printableArea * {
+  /* Ensure all children of printableArea are visible and styled for print by default */
+  #printableArea *, #printableArea *::before, #printableArea *::after {
     visibility: visible !important;
     box-shadow: none !important;
-    /* border-color: #ccc !important; */ /* Let Tailwind variants handle border colors */
+    background-color: transparent !important; /* Avoid unexpected backgrounds */
+    color: black !important; /* Default all text to black */
+    border-color: #ccc !important; /* Default light border for elements that have them */
   }
 
-   /* Ensure Quiz Title for print is visible and styled */
   .printable-quiz-title {
-    display: block !important; /* Ensure title is block for layout */
-    text-align: center;
-    font-size: 1.4rem; /* Adjusted for 11pt base for example */
-    font-weight: bold;
-    margin-bottom: 1rem;
-    color: black !important; /* Ensure title is black */
+    display: block !important;
+    text-align: center !important;
+    font-size: 1.3rem !important; /* Adjust relative to 10pt base */
+    font-weight: bold !important;
+    margin-bottom: 0.8rem !important;
+    color: black !important;
   }
+
+  #printableArea .quiz-question-text { /* Class added in page.tsx */
+    color: black !important;
+    margin-bottom: 0.4rem !important;
+  }
+
+  #printableArea .quiz-option-label { /* Class added in page.tsx */
+    color: black !important;
+  }
+  
+  /* Explicit styles for ShadCN RadioGroupItem (which is a button role="radio") for print */
+  #printableArea [role="radio"] {
+    opacity: 1 !important; /* Ensure full opacity */
+    border-width: 1px !important; /* Standard border */
+    /* Tailwind print:border-black / print:border-gray-400 should handle color */
+  }
+
+  #printableArea [role="radio"] > span { /* The indicator container */
+     opacity: 1 !important;
+  }
+  
+  #printableArea [role="radio"] > span > svg { /* The Lucide Circle icon (the dot) */
+    opacity: 1 !important;
+    /* Tailwind print:text-black / print:text-gray-400 should handle color */
+  }
+
 
   /* Reduce spacing for quiz items on print for better density */
   #printableArea .space-y-6 > div { /* Targets each question block */
-    margin-bottom: 1rem !important; /* Reduce space between questions */
-    padding: 0.5rem !important; /* Reduce padding within question block */
-    /* border-width: 1px !important; */ /* Let Tailwind print:border-gray-300 etc. handle this in page.tsx */
+    margin-bottom: 0.8rem !important; 
+    padding: 0.4rem !important; 
   }
-  #printableArea .mb-3 { /* Question text margin */
-    margin-bottom: 0.5rem !important;
-  }
+
   #printableArea .space-y-2 > div { /* Radio option container */
-    padding: 0.1rem 0 !important; /* Reduce padding for radio options */
+    padding: 0.05rem 0 !important; 
   }
 
-  /* Shadcn UI specific overrides if necessary - for now, relying on Tailwind print variants in page.tsx */
-  /* For example, to ensure icons are visible if they are colored by theme variables: */
-  /* #printableArea .lucide-check { color: green !important; } */
-  /* #printableArea .lucide-x { color: red !important; } */
-  /* However, print:text-green-600 etc. in page.tsx should be preferred */
-}
+  /* Ensure specific feedback text colors (Tailwind print: utilities in JSX will handle this) */
+  /* Example: .text-green-700.print\:text-green-700 */
 
+  /* Hide any lingering popovers or dialogs not part of printableArea */
+  [role="dialog"], [role="alertdialog"], [data-radix-popper-content-wrapper] {
+    display: none !important;
+  }
+}
